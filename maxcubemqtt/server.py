@@ -77,9 +77,9 @@ class MaxcubeMqttServer:
 
     def mqtt_on_message(self, client, userdata, message):
         if self.cube and message.topic in self.device_mapping:
-            self.verbose(message.topic + ': ' + str(float(str(message.payload))))
+            self.verbose(message.topic + ': ' + str(float(message.payload)))
             self.cube_queue.put(Thread(target=self.cube.set_target_temperature,
-                                       args=(self.device_mapping[message.topic], float(str(message.payload)))))
+                                       args=(self.device_mapping[message.topic], float(message.payload))))
 
     def mqtt_broker_reachable(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
