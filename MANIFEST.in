@@ -1,0 +1,4 @@
+include maxcubemqtt/maxcubemqtt.service
+include *.json
+include LICENSE
+include Makefile

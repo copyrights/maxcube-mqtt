@@ -1,0 +1,8 @@
+[Unit]
+Description=MAXCube MQTT Binding
+
+[Service]
+ExecStart=%h/.local/bin/maxcube-mqtt %h/.config/maxcube.json
+
+[Install]
+WantedBy=multi-user.target

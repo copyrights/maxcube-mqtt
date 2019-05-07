@@ -18,6 +18,7 @@ setup(
     url='https://github.com/goodfield/maxcube-mqtt.git',
     license=license,
     packages=['maxcubemqtt'],
+    include_package_data=True,
     install_requires=['maxcube-api', 'paho-mqtt'],
     scripts=['bin/maxcube-mqtt']
 )
