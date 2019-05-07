@@ -10,7 +10,7 @@ with open('LICENSE') as f:
 
 setup(
     name='maxcube-mqtt',
-    version='0.0.3',
+    version='0.0.5',
     description='Control your eQ-3/ELV MAX! Cube with MQTT',
     long_description=readme,
     author='David Uebelacker',
