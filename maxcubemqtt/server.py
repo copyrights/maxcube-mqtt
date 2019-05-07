@@ -74,8 +74,8 @@ class MaxcubeMqttServer:
             self.mqtt_client.reconnect()
 
     def mqtt_on_message(self, client, userdata, message):
-        self.verbose(message.topic)
         if self.cube and message.topic in self.device_mapping:
+            self.verbose(message.topic + ': ' + str(float(str(message.payload))))
             self.cube_queue.put(Thread(target=self.cube.set_target_temperature,
                                        args=(self.device_mapping[message.topic], float(str(message.payload)))))
 
@@ -101,17 +101,22 @@ class MaxcubeMqttServer:
     def cube_connect(self):
         self.cube = MaxCube(MaxCubeConnection(self.config['cube_host'], int(self.config['cube_port'])))
         self.device_mapping = {}
+        self.verbose('Cube connected!')
         for device in self.cube.devices:
             topic = self.config['mqtt_topic_prefix'] + '/' + device.name + '/target_temperature/set'
             self.device_mapping[topic] = device
+            self.verbose('Mapped ' + device.name + ' to ' + topic)
         if self.cube_timer:
             self.cube_timer.cancel()
-
-        self.cube_timer = Timer(300, self.update_cube())
+        
+        self.update_cube()
 
     def update_cube(self):
+        self.verbose('Cube update')
         self.cube.update()
         self.publish_status()
+        self.cube_timer = Timer(60, self.update_cube)
+        self.cube_timer.start()
 
     def publish_status(self):
         for device in self.cube.devices:
@@ -121,11 +126,13 @@ class MaxcubeMqttServer:
             if device.actual_temperature and (topic not in self.status or self.status[topic] != device.actual_temperature):
                 self.mqtt_client.publish(topic, str(device.actual_temperature), 0, True)
                 self.status[topic] = device.actual_temperature
+                self.verbose(topic + ': ' + str(device.actual_temperature))
 
             topic = topic_prefix + '/target_temperature'
             if topic not in self.status or self.status[topic] != device.target_temperature:
                 self.mqtt_client.publish(topic, str(device.target_temperature), 0, True)
                 self.status[topic] = device.target_temperature
+                self.verbose(topic + ': ' + str(device.target_temperature))
 
     def start(self):
         self.mqtt_connect()
