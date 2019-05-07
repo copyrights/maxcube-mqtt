@@ -7,7 +7,7 @@ from maxcubemqtt.server import MaxcubeMqttServer
 
 def main(argv):
     if not argv or len(argv) != 1:
-        print 'maxcube-mqtt <config file>'
+        print('maxcube-mqtt <config file>')
     else:
         with open(argv[0]) as data_file:
             config = json.load(data_file)

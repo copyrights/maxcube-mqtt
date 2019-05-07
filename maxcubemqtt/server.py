@@ -2,7 +2,7 @@ import socket
 import sys
 import time
 import traceback
-import Queue
+import queue
 import paho.mqtt.client as mqtt
 from threading import Thread
 from threading import Timer
@@ -17,7 +17,7 @@ class MaxcubeMqttServer:
     mqtt_client = None
     status = {}
     device_mapping = {}
-    cube_queue = Queue.Queue()
+    cube_queue = queue.Queue()
     cube_worker = None
     cube_timer = None
 
