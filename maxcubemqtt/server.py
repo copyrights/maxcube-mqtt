@@ -46,6 +46,7 @@ class MaxcubeMqttServer:
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_disconnect = self.mqtt_on_disconnect
             self.mqtt_client.on_message = self.mqtt_on_message
+            self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/LWT", "Offline", 1, True)
 
             try:
                 self.mqtt_client.connect(self.config['mqtt_host'], int(self.config['mqtt_port']), 10)
@@ -60,6 +61,7 @@ class MaxcubeMqttServer:
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.mqtt_connected = True
         self.verbose('...mqtt_connected!')
+        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/LWT", "Online", 1, True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
     def mqtt_on_disconnect(self, mqtt_client, userdata, rc):
