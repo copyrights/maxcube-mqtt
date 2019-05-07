@@ -50,7 +50,6 @@ class MaxcubeMqttServer:
 
             try:
                 self.mqtt_client.connect(self.config['mqtt_host'], int(self.config['mqtt_port']), 10)
-                self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/#')
                 self.mqtt_client.loop_forever()
             except:
                 self.error(traceback.format_exc())
@@ -61,6 +60,7 @@ class MaxcubeMqttServer:
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.mqtt_connected = True
         self.verbose('...mqtt_connected!')
+        self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/#')
         self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/LWT", "Online", 1, True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
