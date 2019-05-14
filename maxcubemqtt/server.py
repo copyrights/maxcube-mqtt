@@ -13,13 +13,13 @@ from maxcube.cube import MaxCube
 class MaxcubeMqttServer:
     config = None
     cube = None
-    mqtt_connected = False
     mqtt_client = None
     status = {}
     device_mapping = {}
     cube_queue = queue.Queue()
     cube_worker = None
     cube_timer = None
+    connected_state = 0
 
     def __init__(self, config):
         self.config = config
@@ -46,7 +46,8 @@ class MaxcubeMqttServer:
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_disconnect = self.mqtt_on_disconnect
             self.mqtt_client.on_message = self.mqtt_on_message
-            self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/LWT", "Offline", 1, True)
+            self.connected_state = 0
+            self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
 
             try:
                 self.mqtt_client.connect(self.config['mqtt_host'], int(self.config['mqtt_port']), 10)
@@ -58,14 +59,14 @@ class MaxcubeMqttServer:
             self.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
 
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
-        self.mqtt_connected = True
+        self.connected_state = 1
         self.verbose('...mqtt_connected!')
         self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/#')
-        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/LWT", "Online", 1, True)
+        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
     def mqtt_on_disconnect(self, mqtt_client, userdata, rc):
-        self.mqtt_connected = False
+        self.connected_state = 0
         self.verbose('Diconnected! will reconnect! ...')
         if rc is 0:
             self.mqtt_connect()
@@ -102,6 +103,9 @@ class MaxcubeMqttServer:
 
     def cube_connect(self):
         self.cube = MaxCube(MaxCubeConnection(self.config['cube_host'], int(self.config['cube_port'])))
+        self.connected_state = 2
+        self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, "1", True)
+        
         self.device_mapping = {}
         self.verbose('Cube connected!')
         for device in self.cube.devices:
