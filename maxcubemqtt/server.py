@@ -38,7 +38,8 @@ class MaxcubeMqttServer:
             self.mqtt_client = mqtt.Client(self.config['mqtt_client_id'])
             if 'mqtt_user' in self.config and 'mqtt_password' in self.config:
                 self.mqtt_client.username_pw_set(self.config['mqtt_user'], self.config['mqtt_password'])
-
+            
+            self.mqtt_client.enable_logger()
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_disconnect = self.mqtt_on_disconnect
             self.mqtt_client.on_message = self.mqtt_on_message
@@ -57,10 +58,55 @@ class MaxcubeMqttServer:
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.connected_state = 1
         logger.info('...mqtt_connected!')
-        self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/#')
+        self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/get/#')
+        self.mqtt_client.message_callback_add(self.config['mqtt_topic_prefix'] + '/get/#', self.mqtt_on_message_get)
+        self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/set/#')
+        self.mqtt_client.message_callback_add(self.config['mqtt_topic_prefix'] + '/set/#', self.mqtt_on_message_set)
+        self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/command/#')
+        self.mqtt_client.message_callback_add(self.config['mqtt_topic_prefix'] + '/command/#', self.mqtt_on_message_command)
         self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
+    def mqtt_on_message_get(self, client, userdata, message):
+        name = message.topic.split("/")[2]
+        if name in self.status:
+            self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + '/status/' + name,
+                                        json.dumps(self.status[name]), 0, True)
+    def _set_device(self, name, data):
+        dev = None
+        for device in self.cube.devices:
+            if device.name == name:
+                dev = device
+        
+        if isinstance(data, int) or isinstance(data, float):
+            logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
+            self.cube.set_target_temperature(dev, data)
+        elif isinstance(data, dict):
+            if 'val' in data and 'mode' in data:
+                logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
+                self.cube.set_temperature_mode(dev, data['val'], data['mode'])
+            elif 'val' in data and 'mode' not in data:
+                logger.info('Setting device "' + name + '" target_temperature to ' + str(data['val']))
+                self.cube.set_target_temperature(dev, data['val'])
+            elif 'val' not in data and 'mode' in data:
+                logger.info('Setting device "' + name + '" mode to ' + str(data['mode']))
+                self.cube.set_mode(dev, data['mode'])
+            else:
+                logger.warn('Got set command for device "' + name + '" with unknown structure')
+        else:
+            logger.warn('Got set command for device "' + name + '" with unknown structure')
+        
+    def mqtt_on_message_set(self, client, userdata, message):
+        name = message.topic.split("/")[2]
+        if name in self.status:
+            data = json.loads(message.payload)
+            self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
+        else:
+            logger.warn('Got set command for unknown device "' + name+ '"')   
+    
+    def mqtt_on_message_command(self, client, userdata, message):
+        pass
+        
     def mqtt_on_disconnect(self, mqtt_client, userdata, rc):
         self.connected_state = 0
         logger.info('Diconnected! will reconnect! ...')
@@ -98,12 +144,13 @@ class MaxcubeMqttServer:
             time.sleep(0.5)
 
     def cube_connect(self):
+        logger.info('Connecting to maxcube...')
         self.cube = MaxCube(MaxCubeConnection(self.config['cube_host'], int(self.config['cube_port'])))
         self.connected_state = 2
-        self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
+        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
         
         self.device_mapping = {}
-        logger.info('Cube connected!')
+        logger.info('...cube connected!')
         for device in self.cube.devices:
             topic = self.config['mqtt_topic_prefix'] + '/' + device.name + '/target_temperature/set'
             self.device_mapping[topic] = device
