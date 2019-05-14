@@ -3,15 +3,16 @@ import sys
 import time
 import traceback
 import queue
+import json
 import paho.mqtt.client as mqtt
 from threading import Thread
 from threading import Timer
 from maxcube.connection import MaxCubeConnection
 from maxcube.cube import MaxCube
-
+from maxcube.device import MAX_DEVICE_MODE_AUTOMATIC, MAX_DEVICE_MODE_MANUAL
 
 class MaxcubeMqttServer:
-    config = None
+    config = {}
     cube = None
     mqtt_client = None
     status = {}
@@ -104,7 +105,7 @@ class MaxcubeMqttServer:
     def cube_connect(self):
         self.cube = MaxCube(MaxCubeConnection(self.config['cube_host'], int(self.config['cube_port'])))
         self.connected_state = 2
-        self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, "1", True)
+        self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
         
         self.device_mapping = {}
         self.verbose('Cube connected!')
@@ -124,21 +125,63 @@ class MaxcubeMqttServer:
         self.cube_timer = Timer(60, self.update_cube)
         self.cube_timer.start()
 
-    def publish_status(self):
+    def _update_device(self,device):
+        changed=False
+        # Timestamp in ms since epoch
+        ts = int(time.time()*1000) 
+        
+        if MaxCube.is_thermostat(device) or MaxCube.is_wallthermostat(device):
+            if device.name not in self.status:
+                #logger.info('New thermostat: "' + device.name)
+                self.status[device.name] = { 'val': -1, 
+                                             'target_temperature': -1,
+                                             'lc': ts,
+                                             'ts': ts,
+                                             'serial': device.serial,
+                                             'mode': -1 }
+                                             
+            if (self.status[device.name]['val'] != device.actual_temperature 
+                or self.status[device.name]['target_temperature'] != device.target_temperature
+                or self.status[device.name]['mode'] != device.mode):
+                self.status[device.name]['lc'] = self.status[device.name]['ts']
+                self.status[device.name]['ts'] = ts
+                self.status[device.name]['val'] = device.actual_temperature
+                self.status[device.name]['target_temperature'] = device.target_temperature
+                self.status[device.name]['mode'] = device.mode
+                changed = True
+
+        elif MaxCube.is_windowshutter(device):
+            if device.name not in self.status:
+                #logger.info('New windowshutter: "' + device.name)
+                self.status[device.name] = { 'val': device.is_open, 
+                                             'lc': ts,
+                                             'ts': ts,
+                                             'serial': device.serial}
+                changed = True
+            
+            elif self.status[device.name]['val'] != device.is_open:
+                self.status[device.name]['lc'] = self.status[device.name]['ts']
+                self.status[device.name]['ts'] = ts
+                self.status[device.name]['val'] = device.is_open
+        
+        return changed
+
+    def publish_status_single(name):
+        ''' publishes the state of the device with the given name'''
+        topic_prefix = self.config['mqtt_topic_prefix'] + '/status/'
         for device in self.cube.devices:
-            topic_prefix = self.config['mqtt_topic_prefix'] + '/' + device.name
+            if device.name == name:
+                self._update_device(device)
+                self.mqtt_client.publish(topic_prefix + device.name,
+                                        json.dumps(self.config[device.name]), 0, True)
 
-            topic = topic_prefix + '/actual_temperature'
-            if device.actual_temperature and (topic not in self.status or self.status[topic] != device.actual_temperature):
-                self.mqtt_client.publish(topic, str(device.actual_temperature), 0, True)
-                self.status[topic] = device.actual_temperature
-                self.verbose(topic + ': ' + str(device.actual_temperature))
-
-            topic = topic_prefix + '/target_temperature'
-            if topic not in self.status or self.status[topic] != device.target_temperature:
-                self.mqtt_client.publish(topic, str(device.target_temperature), 0, True)
-                self.status[topic] = device.target_temperature
-                self.verbose(topic + ': ' + str(device.target_temperature))
+    def publish_status(self):
+        ''' publishes the state of every device with a state change'''
+        topic_prefix = self.config['mqtt_topic_prefix'] + '/status/'
+        for device in self.cube.devices:
+            if self._update_device(device):
+                self.mqtt_client.publish(topic_prefix + device.name,
+                                        json.dumps(self.status[device.name]), 0, True)
 
     def start(self):
         self.mqtt_connect()
