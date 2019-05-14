@@ -20,7 +20,6 @@ class MaxcubeMqttServer:
     cube = None
     mqtt_client = None
     status = {}
-    device_mapping = {}
     cube_queue = queue.Queue()
     cube_worker = None
     cube_timer = None
@@ -120,10 +119,7 @@ class MaxcubeMqttServer:
             self.mqtt_client.reconnect()
 
     def mqtt_on_message(self, client, userdata, message):
-        if self.cube and message.topic in self.device_mapping:
-            logger.info(message.topic + ': ' + str(float(message.payload)))
-            self.cube_queue.put(Thread(target=self.cube.set_target_temperature,
-                                       args=(self.device_mapping[message.topic], float(message.payload))))
+        logger.warn('Unhandled message to "' + message.topic + '"')
 
     def mqtt_broker_reachable(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -158,12 +154,8 @@ class MaxcubeMqttServer:
         self.connected_state = 2
         self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
         
-        self.device_mapping = {}
         logger.info('...cube connected!')
-        for device in self.cube.devices:
-            topic = self.config['mqtt_topic_prefix'] + '/' + device.name + '/target_temperature/set'
-            self.device_mapping[topic] = device
-            logger.info('Mapped ' + device.name + ' to ' + topic)
+
         if self.cube_timer:
             self.cube_timer.cancel()
         
