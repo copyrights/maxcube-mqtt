@@ -4,12 +4,16 @@ import time
 import traceback
 import queue
 import json
+import logging
 import paho.mqtt.client as mqtt
 from threading import Thread
 from threading import Timer
 from maxcube.connection import MaxCubeConnection
 from maxcube.cube import MaxCube
 from maxcube.device import MAX_DEVICE_MODE_AUTOMATIC, MAX_DEVICE_MODE_MANUAL
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 class MaxcubeMqttServer:
     config = {}
@@ -28,18 +32,9 @@ class MaxcubeMqttServer:
         self.cube_worker.setDaemon(True)
         self.cube_worker.start()
 
-    def verbose(self, message):
-        if not self.config or 'verbose' not in self.config or self.config['verbose']:
-            sys.stdout.write('VERBOSE: ' + message + '\n')
-            sys.stdout.flush()
-
-    def error(self, message):
-        sys.stderr.write('ERROR: ' + message + '\n')
-        sys.stderr.flush()
-
     def mqtt_connect(self):
         if self.mqtt_broker_reachable():
-            self.verbose('Connecting to ' + self.config['mqtt_host'] + ':' + self.config['mqtt_port'])
+            logger.info('Connecting to ' + self.config['mqtt_host'] + ':' + self.config['mqtt_port'])
             self.mqtt_client = mqtt.Client(self.config['mqtt_client_id'])
             if 'mqtt_user' in self.config and 'mqtt_password' in self.config:
                 self.mqtt_client.username_pw_set(self.config['mqtt_user'], self.config['mqtt_password'])
@@ -54,21 +49,21 @@ class MaxcubeMqttServer:
                 self.mqtt_client.connect(self.config['mqtt_host'], int(self.config['mqtt_port']), 10)
                 self.mqtt_client.loop_forever()
             except:
-                self.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
                 self.mqtt_client = None
         else:
-            self.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
+            logger.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
 
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.connected_state = 1
-        self.verbose('...mqtt_connected!')
+        logger.info('...mqtt_connected!')
         self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/#')
         self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
     def mqtt_on_disconnect(self, mqtt_client, userdata, rc):
         self.connected_state = 0
-        self.verbose('Diconnected! will reconnect! ...')
+        logger.info('Diconnected! will reconnect! ...')
         if rc is 0:
             self.mqtt_connect()
         else:
@@ -79,7 +74,7 @@ class MaxcubeMqttServer:
 
     def mqtt_on_message(self, client, userdata, message):
         if self.cube and message.topic in self.device_mapping:
-            self.verbose(message.topic + ': ' + str(float(message.payload)))
+            logger.info(message.topic + ': ' + str(float(message.payload)))
             self.cube_queue.put(Thread(target=self.cube.set_target_temperature,
                                        args=(self.device_mapping[message.topic], float(message.payload))))
 
@@ -108,18 +103,18 @@ class MaxcubeMqttServer:
         self.mqtt_client.will_set(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
         
         self.device_mapping = {}
-        self.verbose('Cube connected!')
+        logger.info('Cube connected!')
         for device in self.cube.devices:
             topic = self.config['mqtt_topic_prefix'] + '/' + device.name + '/target_temperature/set'
             self.device_mapping[topic] = device
-            self.verbose('Mapped ' + device.name + ' to ' + topic)
+            logger.info('Mapped ' + device.name + ' to ' + topic)
         if self.cube_timer:
             self.cube_timer.cancel()
         
         self.update_cube()
 
     def update_cube(self):
-        self.verbose('Cube update')
+        logger.info('Cube update')
         self.cube.update()
         self.publish_status()
         self.cube_timer = Timer(60, self.update_cube)
