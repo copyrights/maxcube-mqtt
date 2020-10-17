@@ -38,7 +38,7 @@ class MaxcubeMqttServer:
             self.mqtt_client = mqtt.Client(self.config['mqtt_client_id'])
             if 'mqtt_user' in self.config and 'mqtt_password' in self.config:
                 self.mqtt_client.username_pw_set(self.config['mqtt_user'], self.config['mqtt_password'])
-            
+
             self.mqtt_client.enable_logger()
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_disconnect = self.mqtt_on_disconnect
@@ -52,8 +52,10 @@ class MaxcubeMqttServer:
             except:
                 logger.error(traceback.format_exc())
                 self.mqtt_client = None
+                sys.exit(1) #<-- workaround, to be tested
         else:
             logger.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
+            sys.exit(1) #<-- workaround, to be tested
 
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.connected_state = 1
@@ -77,7 +79,7 @@ class MaxcubeMqttServer:
         for device in self.cube.devices:
             if device.name == name:
                 dev = device
-        
+
         if isinstance(data, int) or isinstance(data, float):
             logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
             self.cube.set_target_temperature(dev, data)
@@ -95,18 +97,18 @@ class MaxcubeMqttServer:
                 logger.warn('Got set command for device "' + name + '" with unknown structure')
         else:
             logger.warn('Got set command for device "' + name + '" with unknown structure')
-        
+
     def mqtt_on_message_set(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
             data = json.loads(message.payload)
             self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
         else:
-            logger.warn('Got set command for unknown device "' + name+ '"')   
-    
+            logger.warn('Got set command for unknown device "' + name+ '"')
+
     def mqtt_on_message_command(self, client, userdata, message):
         pass
-        
+
     def mqtt_on_disconnect(self, mqtt_client, userdata, rc):
         self.connected_state = 0
         logger.info('Diconnected! will reconnect! ...')
@@ -152,15 +154,15 @@ class MaxcubeMqttServer:
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.cube_connect))
             return
-        
+
         self.connected_state = 2
         self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
-        
+
         logger.info('...cube connected!')
 
         if self.cube_timer:
             self.cube_timer.cancel()
-        
+
         self.update_cube()
 
     def update_cube(self):
@@ -183,19 +185,19 @@ class MaxcubeMqttServer:
     def _update_device(self,device):
         changed=False
         # Timestamp in ms since epoch
-        ts = int(time.time()*1000) 
-        
+        ts = int(time.time()*1000)
+
         if MaxCube.is_thermostat(device) or MaxCube.is_wallthermostat(device):
             if device.name not in self.status:
                 #logger.info('New thermostat: "' + device.name)
-                self.status[device.name] = { 'val': -1, 
+                self.status[device.name] = { 'val': -1,
                                              'target_temperature': -1,
                                              'lc': ts,
                                              'ts': ts,
                                              'serial': device.serial,
                                              'mode': -1 }
-                                             
-            if (self.status[device.name]['val'] != device.actual_temperature 
+
+            if (self.status[device.name]['val'] != device.actual_temperature
                 or self.status[device.name]['target_temperature'] != device.target_temperature
                 or self.status[device.name]['mode'] != device.mode):
                 self.status[device.name]['lc'] = self.status[device.name]['ts']
@@ -208,17 +210,17 @@ class MaxcubeMqttServer:
         elif MaxCube.is_windowshutter(device):
             if device.name not in self.status:
                 #logger.info('New windowshutter: "' + device.name)
-                self.status[device.name] = { 'val': device.is_open, 
+                self.status[device.name] = { 'val': device.is_open,
                                              'lc': ts,
                                              'ts': ts,
                                              'serial': device.serial}
                 changed = True
-            
+
             elif self.status[device.name]['val'] != device.is_open:
                 self.status[device.name]['lc'] = self.status[device.name]['ts']
                 self.status[device.name]['ts'] = ts
                 self.status[device.name]['val'] = device.is_open
-        
+
         return changed
 
     def publish_status_single(name):
