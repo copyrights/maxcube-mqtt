@@ -29,7 +29,7 @@ class MaxcubeMqttServer:
     def __init__(self, config):
         self.config = config
         self.cube_worker = Thread(target=self.cube_work)
-        self.cube_worker.setDaemon(True)
+        self.cube_worker.daemon = True
         self.cube_worker.start()
 
     def mqtt_connect(self):
@@ -52,10 +52,12 @@ class MaxcubeMqttServer:
             except:
                 logger.error(traceback.format_exc())
                 self.mqtt_client = None
+                logger.info('sys.exit(1)')
                 sys.exit(1) #<-- workaround, to be tested
         else:
             logger.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
-            sys.exit(1) #<-- workaround, to be tested
+            logger.info('sys.exit(2)')
+            sys.exit(2) #<-- workaround, to be tested
 
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.connected_state = 1
@@ -150,7 +152,8 @@ class MaxcubeMqttServer:
             logger.error("MaxCube not reachable")
             self.connected_state = 1
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
-            sys.exit(1) #<-- workaround, to be tested
+            logger.info('sys.exit(3)')
+            sys.exit(3) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.cube_connect))
             return
@@ -174,7 +177,8 @@ class MaxcubeMqttServer:
             logger.error("MaxCube not reachable")
             self.connected_state = 1
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
-            sys.exit(1) #<-- workaround, to be tested
+            logger.info('sys.exit(4)')
+            sys.exit(4) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.update_cube))
             return
