@@ -184,6 +184,7 @@ class MaxcubeMqttServer:
             return
         self.publish_status()
         self.cube_timer = Timer(60, self.update_cube)
+        self.cube_timer.daemon = True
         self.cube_timer.start()
 
     def _update_device(self,device):
