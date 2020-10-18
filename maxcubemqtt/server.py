@@ -103,8 +103,13 @@ class MaxcubeMqttServer:
     def mqtt_on_message_set(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
-            data = json.loads(message.payload)
-            self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
+            try:
+                data = json.loads(message.payload)
+                self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
+            except:
+                logger.error(traceback.format_exc())
+                logger.info('sys.exit(5)')
+                sys.exit(5) #<-- workaround, to be tested
         else:
             logger.warn('Got set command for unknown device "' + name+ '"')
 
