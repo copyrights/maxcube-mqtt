@@ -141,7 +141,10 @@ class MaxcubeMqttServer:
             s.close()
             return True
         except socket.error:
-            return False
+            logger.error(traceback.format_exc())
+            logger.info('sys.exit(7)')
+            sys.exit(7) #<-- workaround, to be tested
+
 
     def cube_work(self):
         while True:
