@@ -81,25 +81,28 @@ class MaxcubeMqttServer:
         for device in self.cube.devices:
             if device.name == name:
                 dev = device
-
-        if isinstance(data, int) or isinstance(data, float):
-            logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
-            self.cube.set_target_temperature(dev, data)
-        elif isinstance(data, dict):
-            if 'val' in data and 'mode' in data:
+        try:
+            if isinstance(data, int) or isinstance(data, float):
                 logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
-                self.cube.set_temperature_mode(dev, data['val'], data['mode'])
-            elif 'val' in data and 'mode' not in data:
-                logger.info('Setting device "' + name + '" target_temperature to ' + str(data['val']))
-                self.cube.set_target_temperature(dev, data['val'])
-            elif 'val' not in data and 'mode' in data:
-                logger.info('Setting device "' + name + '" mode to ' + str(data['mode']))
-                self.cube.set_mode(dev, data['mode'])
+                self.cube.set_target_temperature(dev, data)
+            elif isinstance(data, dict):
+                if 'val' in data and 'mode' in data:
+                    logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
+                    self.cube.set_temperature_mode(dev, data['val'], data['mode'])
+                elif 'val' in data and 'mode' not in data:
+                    logger.info('Setting device "' + name + '" target_temperature to ' + str(data['val']))
+                    self.cube.set_target_temperature(dev, data['val'])
+                elif 'val' not in data and 'mode' in data:
+                    logger.info('Setting device "' + name + '" mode to ' + str(data['mode']))
+                    self.cube.set_mode(dev, data['mode'])
+                else:
+                    logger.warn('Got set command for device "' + name + '" with unknown structure')
             else:
                 logger.warn('Got set command for device "' + name + '" with unknown structure')
-        else:
-            logger.warn('Got set command for device "' + name + '" with unknown structure')
-
+        except:
+            logger.error(traceback.format_exc())
+            logger.info('sys.exit(6)')
+            sys.exit(6) #<-- workaround, to be tested
     def mqtt_on_message_set(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
