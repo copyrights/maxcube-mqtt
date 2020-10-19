@@ -25,6 +25,7 @@ class MaxcubeMqttServer:
     cube_timer = None
     connected_state = 0
     reconnect_time = 10
+    error_queue = queue.Queue()
 
     def __init__(self, config):
         self.config = config
@@ -52,12 +53,10 @@ class MaxcubeMqttServer:
             except:
                 logger.error(traceback.format_exc())
                 self.mqtt_client = None
-                logger.info('sys.exit(1)')
-                sys.exit(1) #<-- workaround, to be tested
+                self.error_queue.put(1) #<-- workaround, to be tested
         else:
             logger.error(self.config['mqtt_host'] + ':' + self.config['mqtt_port'] + ' not reachable!')
-            logger.info('sys.exit(2)')
-            sys.exit(2) #<-- workaround, to be tested
+            self.error_queue.put(2) #<-- workaround, to be tested
 
     def mqtt_on_connect(self, mqtt_client, userdata, flags, rc):
         self.connected_state = 1
@@ -101,8 +100,7 @@ class MaxcubeMqttServer:
                 logger.warn('Got set command for device "' + name + '" with unknown structure')
         except:
             logger.error(traceback.format_exc())
-            logger.info('sys.exit(6)')
-            sys.exit(6) #<-- workaround, to be tested
+            self.error_queue.put(6) #<-- workaround, to be tested
     def mqtt_on_message_set(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
@@ -111,8 +109,7 @@ class MaxcubeMqttServer:
                 self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
             except:
                 logger.error(traceback.format_exc())
-                logger.info('sys.exit(5)')
-                sys.exit(5) #<-- workaround, to be tested
+                self.error_queue.put(5) #<-- workaround, to be tested
         else:
             logger.warn('Got set command for unknown device "' + name+ '"')
 
@@ -142,8 +139,7 @@ class MaxcubeMqttServer:
             return True
         except socket.error:
             logger.error(traceback.format_exc())
-            logger.info('sys.exit(7)')
-            sys.exit(7) #<-- workaround, to be tested
+            self.error_queue.put(7) #<-- workaround, to be tested
 
 
     def cube_work(self):
@@ -163,8 +159,7 @@ class MaxcubeMqttServer:
             logger.error("MaxCube not reachable")
             self.connected_state = 1
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
-            logger.info('sys.exit(3)')
-            sys.exit(3) #<-- workaround, to be tested
+            self.error_queue.put(3) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.cube_connect))
             return
@@ -188,8 +183,7 @@ class MaxcubeMqttServer:
             logger.error("MaxCube not reachable")
             self.connected_state = 1
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
-            logger.info('sys.exit(4)')
-            sys.exit(4) #<-- workaround, to be tested
+            self.error_queue.put(4) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.update_cube))
             return
@@ -257,4 +251,14 @@ class MaxcubeMqttServer:
                                         json.dumps(self.status[device.name]), 0, True)
 
     def start(self):
-        self.mqtt_connect()
+        self.mainloop = Thread(target=self.mqtt_connect)
+        self.mainloop.daemon = True
+        self.mainloop.start()
+        while True:
+            time.sleep(0.5)
+            if not self.error_queue.empty():
+                rc = self.error_queue.get()
+                logger.info('sys.exit(%i)' % rc)
+                sys.exit(rc)
+        logger.info('sys.exit(99)')
+        sys.exit(99)
