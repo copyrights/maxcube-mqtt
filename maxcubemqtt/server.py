@@ -181,9 +181,9 @@ class MaxcubeMqttServer:
             self.cube.update()
         except socket.error:
             logger.error("MaxCube not reachable")
+            self.error_queue.put(4) #<-- workaround, to be tested
             self.connected_state = 1
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
-            self.error_queue.put(4) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.update_cube))
             return
