@@ -187,6 +187,9 @@ class MaxcubeMqttServer:
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.update_cube))
             return
+        except:
+            logger.error(traceback.format_exc())
+            self.error_queue.put(8) #<-- workaround, to be tested
         self.publish_status()
         self.cube_timer = Timer(60, self.update_cube)
         self.cube_timer.daemon = True
