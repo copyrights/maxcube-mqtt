@@ -67,14 +67,14 @@ class MaxcubeMqttServer:
         self.mqtt_client.message_callback_add(self.config['mqtt_topic_prefix'] + '/set/#', self.mqtt_on_message_set)
         self.mqtt_client.subscribe(self.config['mqtt_topic_prefix'] + '/command/#')
         self.mqtt_client.message_callback_add(self.config['mqtt_topic_prefix'] + '/command/#', self.mqtt_on_message_command)
-        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
+        self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
         self.cube_queue.put(Thread(target=self.cube_connect))
 
     def mqtt_on_message_get(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
             logger.info('status of %s \n%s' % (name, json.dumps(self.status[name])))
-            self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + '/status/' + name,
+            self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + '/status/' + name,
                                         json.dumps(self.status[name]), 0, True)
     def _set_device(self, name, data):
         dev = None
@@ -161,14 +161,14 @@ class MaxcubeMqttServer:
         except socket.error:
             logger.error("MaxCube not reachable")
             self.connected_state = 1
-            self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
+            self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
             self.error_queue.put(3) #<-- workaround, to be tested
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.cube_connect))
             return
 
         self.connected_state = 2
-        self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
+        self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1, True)
 
         logger.info('...cube connected!')
 
@@ -186,7 +186,7 @@ class MaxcubeMqttServer:
             logger.error("MaxCube not reachable")
             self.error_queue.put(4) #<-- workaround, to be tested
             self.connected_state = 1
-            self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
+            self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + "/connected", self.connected_state, 1 ,True)
             self.cube_queue.put(Thread(target=time.sleep, args=(self.reconnect_time,)))
             self.cube_queue.put(Thread(target=self.update_cube))
             return
@@ -238,14 +238,16 @@ class MaxcubeMqttServer:
                 self.status[device.name]['val'] = device.is_open
 
         return changed
-
+    def mqtt_client_publish(self, topic, payload=None, qos=0, retain=False):
+        self.logger.info('{"topic": "%s", "payload": %s }' % (topic, payload))
+        self.mqtt_client.publish(topic, payload, qos, retain)
     def publish_status_single(name):
         ''' publishes the state of the device with the given name'''
         topic_prefix = self.config['mqtt_topic_prefix'] + '/status/'
         for device in self.cube.devices:
             if device.name == name:
                 self._update_device(device)
-                self.mqtt_client.publish(topic_prefix + device.name,
+                self.mqtt_client_publish(topic_prefix + device.name,
                                         json.dumps(self.config[device.name]), 0, True)
 
     def publish_status(self):
@@ -253,7 +255,8 @@ class MaxcubeMqttServer:
         topic_prefix = self.config['mqtt_topic_prefix'] + '/status/'
         for device in self.cube.devices:
             if self._update_device(device):
-                self.mqtt_client.publish(topic_prefix + device.name,
+
+                self.mqtt_client_publish(topic_prefix + device.name,
                                         json.dumps(self.status[device.name]), 0, True)
 
     def start(self):
