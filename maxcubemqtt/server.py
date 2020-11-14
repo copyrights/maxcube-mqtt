@@ -81,7 +81,7 @@ class MaxcubeMqttServer:
         for device in self.cube.devices:
             if device.name == name:
                 dev = device
-                logger.info('device:' + dev)
+                logger.info('name: %s, type: %s, rf_address: %s, room_id: %s' % (dev.name, dev.type , dev.rf_address , dev.room_id) )
         try:
             if isinstance(data, int) or isinstance(data, float):
                 logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
