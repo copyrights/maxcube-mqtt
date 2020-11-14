@@ -73,7 +73,7 @@ class MaxcubeMqttServer:
     def mqtt_on_message_get(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
-            logger.info('status of %s \n%s' % (name, json.dumps(self.status[name])))
+            logger.info('status of %s %s' % (name, json.dumps(self.status[name])))
             self.mqtt_client_publish(self.config['mqtt_topic_prefix'] + '/status/' + name,
                                         json.dumps(self.status[name]), 0, True)
     def _set_device(self, name, data):
@@ -108,7 +108,7 @@ class MaxcubeMqttServer:
         if name in self.status:
             try:
                 data = json.loads(message.payload)
-                logger.info('MQTT: %s\n%s' % (name, data) )
+                logger.info('MQTT: %s %s' % (name, data) )
                 self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
             except:
                 logger.error(traceback.format_exc())
