@@ -239,7 +239,7 @@ class MaxcubeMqttServer:
 
         return changed
     def mqtt_client_publish(self, topic, payload=None, qos=0, retain=False):
-        self.logger.info('{"topic": "%s", "payload": %s }' % (topic, payload))
+        logger.info('{"topic": "%s", "payload": %s }' % (topic, payload))
         self.mqtt_client.publish(topic, payload, qos, retain)
     def publish_status_single(name):
         ''' publishes the state of the device with the given name'''
