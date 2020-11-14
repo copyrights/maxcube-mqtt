@@ -73,6 +73,7 @@ class MaxcubeMqttServer:
     def mqtt_on_message_get(self, client, userdata, message):
         name = message.topic.split("/")[2]
         if name in self.status:
+            logger.info('status of %s \n%s' % (name, json.dumps(self.status[name])))
             self.mqtt_client.publish(self.config['mqtt_topic_prefix'] + '/status/' + name,
                                         json.dumps(self.status[name]), 0, True)
     def _set_device(self, name, data):
@@ -80,6 +81,7 @@ class MaxcubeMqttServer:
         for device in self.cube.devices:
             if device.name == name:
                 dev = device
+                logger.info('device:\n%s' % json.dumps(dev.to_dict()))
         try:
             if isinstance(data, int) or isinstance(data, float):
                 logger.info('Setting device "' + name + '" target_temperature to ' + str(data))
@@ -106,6 +108,7 @@ class MaxcubeMqttServer:
         if name in self.status:
             try:
                 data = json.loads(message.payload)
+                logger.info('MQTT: %s\n%s' % (name, data) )
                 self.cube_queue.put(Thread(target=self._set_device, args=(name, data)))
             except:
                 logger.error(traceback.format_exc())
