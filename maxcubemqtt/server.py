@@ -13,7 +13,7 @@ from maxcube.cube import MaxCube
 from maxcube.device import MAX_DEVICE_MODE_AUTOMATIC, MAX_DEVICE_MODE_MANUAL
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 class MaxcubeMqttServer:
     config = {}
