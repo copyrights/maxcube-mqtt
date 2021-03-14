@@ -13,7 +13,7 @@ from maxcube.cube import MaxCube
 from maxcube.device import MAX_DEVICE_MODE_AUTOMATIC, MAX_DEVICE_MODE_MANUAL
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 class MaxcubeMqttServer:
     config = {}
@@ -203,39 +203,31 @@ class MaxcubeMqttServer:
         # Timestamp in ms since epoch
         ts = int(time.time()*1000)
 
-        if MaxCube.is_thermostat(device) or MaxCube.is_wallthermostat(device):
-            if device.name not in self.status:
-                #logger.info('New thermostat: "' + device.name)
-                self.status[device.name] = { 'val': -1,
-                                             'target_temperature': -1,
-                                             'lc': ts,
-                                             'ts': ts,
-                                             'serial': device.serial,
-                                             'mode': -1 }
+        if device.name not in self.status:
+            self.status[device.name] = device.to_dict()
+            self.status[device.name]['ts'] = ts
+            self.status[device.name]['lc'] = ts
+            changed = True
 
-            if (self.status[device.name]['val'] != device.actual_temperature
+        if (MaxCube.is_thermostat(device) or MaxCube.is_wallthermostat(device)):
+            self.status[device.name]['val'] = device.actual_temperature
+            if not changed and (self.status[device.name]['actual_temperature'] != device.actual_temperature
                 or self.status[device.name]['target_temperature'] != device.target_temperature
                 or self.status[device.name]['mode'] != device.mode):
-                self.status[device.name]['lc'] = self.status[device.name]['ts']
+                lc = self.status[device.name]['ts']
+                self.status[device.name] = device.to_dict()
                 self.status[device.name]['ts'] = ts
-                self.status[device.name]['val'] = device.actual_temperature
-                self.status[device.name]['target_temperature'] = device.target_temperature
-                self.status[device.name]['mode'] = device.mode
+                self.status[device.name]['lc'] = lc
                 changed = True
 
         elif MaxCube.is_windowshutter(device):
-            if device.name not in self.status:
-                #logger.info('New windowshutter: "' + device.name)
-                self.status[device.name] = { 'val': device.is_open,
-                                             'lc': ts,
-                                             'ts': ts,
-                                             'serial': device.serial}
-                changed = True
-
-            elif self.status[device.name]['val'] != device.is_open:
-                self.status[device.name]['lc'] = self.status[device.name]['ts']
+            self.status[device.name]['val'] = device.is_open
+            if not changed and self.status[device.name]['is_open'] != device.is_open:
+                lc = self.status[device.name]['ts']
+                self.status[device.name] = device.to_dict()
                 self.status[device.name]['ts'] = ts
-                self.status[device.name]['val'] = device.is_open
+                self.status[device.name]['lc'] = lc
+                changed = True
 
         return changed
     def mqtt_client_publish(self, topic, payload=None, qos=0, retain=False):
